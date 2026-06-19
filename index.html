@@ -530,9 +530,13 @@
             <div class="high-score-text" id="highScoreText"></div>
             <button class="start-btn" onclick="startGame()">RETRY</button>
             <div class="gameover-actions">
-                <button class="sub-btn" onclick="openScoreRegistration()">🏆 スコアを登録</button>
+                <button class="sub-btn" id="registerScoreBtn" onclick="openScoreRegistration()">🏆 スコアを登録</button>
                 <button class="sub-btn" onclick="showRanking()">📊 RANKING</button>
             </div>
+            <div class="gameover-actions" style="margin-top: 8px;">
+                <button class="sub-btn" onclick="backToTitle()">🏠 タイトルに戻る</button>
+            </div>
+            <div class="controls-info" style="margin-top: 12px; font-size: 11px;">※ スコア登録には GitHub アカウントが必要です</div>
         </div>
 
         <div id="rankingModal">
@@ -1319,7 +1323,20 @@
 
         setTimeout(() => {
             document.getElementById('gameOverScreen').style.display = 'flex';
+            // スコア登録ボタンをリセット
+            const btn = document.getElementById('registerScoreBtn');
+            btn.disabled = false;
+            btn.textContent = '🏆 スコアを登録';
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
         }, 600);
+    }
+
+    function backToTitle() {
+        game.running = false;
+        document.getElementById('gameOverScreen').style.display = 'none';
+        document.getElementById('startScreen').style.display = 'flex';
+        menuAnimation();
     }
 
     // ===== BACKGROUND ANIMATION FOR MENUS =====
@@ -1398,6 +1415,13 @@
         }
         hideNameInput();
         window.open(generateScoreIssueURL(playerName), '_blank');
+
+        // ボタンを登録済み状態にする
+        const btn = document.getElementById('registerScoreBtn');
+        btn.disabled = true;
+        btn.textContent = '✓ 登録済み';
+        btn.style.opacity = '0.4';
+        btn.style.cursor = 'default';
     }
 
     function hideNameInput() {
