@@ -415,6 +415,76 @@
             margin-bottom: 16px;
             text-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
         }
+
+        #nameInputModal {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(ellipse at center, rgba(10, 10, 26, 0.92) 0%, rgba(10, 10, 26, 0.98) 100%);
+            pointer-events: all;
+            z-index: 25;
+        }
+
+        .name-input-title {
+            font-size: 24px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #ffd54f, #ff9800);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 24px;
+            letter-spacing: 3px;
+        }
+
+        .name-input-label {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 14px;
+            color: #a5d6a7;
+            margin-bottom: 12px;
+        }
+
+        .name-input-field {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 16px;
+            width: 260px;
+            padding: 12px 16px;
+            border: 2px solid rgba(76, 175, 80, 0.4);
+            background: rgba(255, 255, 255, 0.05);
+            color: #e8f5e9;
+            border-radius: 8px;
+            outline: none;
+            text-align: center;
+            letter-spacing: 1px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .name-input-field:focus {
+            border-color: #4caf50;
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.3);
+        }
+
+        .name-input-field::placeholder {
+            color: #616161;
+        }
+
+        .name-input-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .name-input-score {
+            font-size: 14px;
+            color: #ffcc80;
+            margin-bottom: 20px;
+            letter-spacing: 1px;
+        }
     </style>
 </head>
 <body>
@@ -459,6 +529,17 @@
             </div>
             <div class="ranking-local">あなたのベスト: <span id="rankingLocalScore">0</span> pts</div>
             <button class="sub-btn" onclick="hideRanking()">✕ 閉じる</button>
+        </div>
+
+        <div id="nameInputModal">
+            <div class="name-input-title">🏆 スコアを登録</div>
+            <div class="name-input-score" id="nameInputScore"></div>
+            <div class="name-input-label">名前を入力してください</div>
+            <input type="text" id="playerNameInput" class="name-input-field" placeholder="名前またはアカウント名" maxlength="20">
+            <div class="name-input-actions">
+                <button class="sub-btn" onclick="submitScore()">登録する</button>
+                <button class="sub-btn" onclick="hideNameInput()">キャンセル</button>
+            </div>
         </div>
     </div>
 
@@ -1262,14 +1343,16 @@
     const REPO_OWNER = 'Shunichi-Takeda';
     const REPO_NAME = 'narekan-shooting';
 
-    function generateScoreIssueURL() {
-        const title = `🏆 ${game.score} pts | Wave ${game.wave} | Combo x${game.maxCombo}`;
+    function generateScoreIssueURL(playerName) {
+        const displayName = playerName || '匿名';
+        const title = `🏆 ${game.score} pts | ${displayName} | Wave ${game.wave} | Combo x${game.maxCombo}`;
         const body = [
             '<!-- 🥦 ブロッコリーシューター スコア登録 -->',
             '<!-- ⚠️ タイトルを変更しないでください -->',
             '',
             '| 項目 | 値 |',
             '|---|---|',
+            `| 名前 | ${displayName} |`,
             `| スコア | ${game.score.toLocaleString()} |`,
             `| ウェーブ | ${game.wave} |`,
             `| 最大コンボ | x${game.maxCombo} |`,
@@ -1286,8 +1369,35 @@
     }
 
     function openScoreRegistration() {
-        window.open(generateScoreIssueURL(), '_blank');
+        document.getElementById('nameInputScore').textContent =
+            `SCORE: ${game.score.toLocaleString()} | WAVE: ${game.wave} | COMBO: x${game.maxCombo}`;
+        const savedName = localStorage.getItem('broccoliPlayerName') || '';
+        document.getElementById('playerNameInput').value = savedName;
+        document.getElementById('nameInputModal').style.display = 'flex';
+        document.getElementById('playerNameInput').focus();
     }
+
+    function submitScore() {
+        const nameInput = document.getElementById('playerNameInput');
+        const playerName = nameInput.value.trim();
+        if (playerName) {
+            localStorage.setItem('broccoliPlayerName', playerName);
+        }
+        hideNameInput();
+        window.open(generateScoreIssueURL(playerName), '_blank');
+    }
+
+    function hideNameInput() {
+        document.getElementById('nameInputModal').style.display = 'none';
+    }
+
+    // Enterキーで送信
+    document.getElementById('playerNameInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            submitScore();
+        }
+    });
 
     let rankingCache = null;
     let rankingCacheTime = 0;
@@ -1315,13 +1425,26 @@
             const scores = issues
                 .map(issue => {
                     const match = issue.title.match(/🏆\s*(\d+)\s*pts/);
+                    if (!match) return null;
+
+                    // タイトルフォーマット: 🏆 12345 pts | 名前 | Wave 5 | Combo x8
+                    const parts = issue.title.split('|').map(p => p.trim());
+                    let playerName = null;
+                    if (parts.length >= 3) {
+                        const namePart = parts[1];
+                        if (namePart && !namePart.match(/^(Wave|Combo)/)) {
+                            playerName = namePart;
+                        }
+                    }
+
                     const waveMatch = issue.title.match(/Wave\s*(\d+)/);
                     const comboMatch = issue.title.match(/Combo\s*x(\d+)/);
-                    if (!match) return null;
+
                     return {
                         score: parseInt(match[1]),
                         wave: waveMatch ? parseInt(waveMatch[1]) : 0,
                         combo: comboMatch ? parseInt(comboMatch[1]) : 0,
+                        playerName: playerName,
                         user: issue.user.login,
                         avatar: issue.user.avatar_url,
                     };
@@ -1347,10 +1470,11 @@
         listEl.innerHTML = scores
             .map((s, i) => {
                 const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+                const displayName = s.playerName || s.user;
                 return `<div class="ranking-item ${i < 3 ? 'ranking-top3' : ''}">
                     <span class="ranking-rank">${medal}</span>
                     <img class="ranking-avatar" src="${s.avatar}" alt="" width="24" height="24">
-                    <span class="ranking-name">${s.user}</span>
+                    <span class="ranking-name">${displayName}</span>
                     <span class="ranking-score">${s.score.toLocaleString()} pts</span>
                 </div>`;
             })
